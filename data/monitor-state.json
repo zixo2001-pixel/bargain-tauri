@@ -623,18 +623,9 @@
   "config": {
     "pollingIntervalMinutes": 5,
     "isPollingActive": true,
-    "discordWebhookConfigured": true,
-    "tauriSessionConfigured": true,
-    "tauriAhUrl": "https://tauriwow.com/sys/armory/character/character.php",
     "totalParsed": 25,
     "totalNotified": 8,
     "lastCheckStatus": "success",
-    "nextCheckAt": "2026-08-19T00:23:12.427Z",
-    "lastCheckedAt": "2026-08-19T00:18:18.757Z"
-  },
-  "secrets": {
-    "discordWebhookUrl": "https://discord.com/api/webhooks/1539423585079398400/9a8OeQxVl1M3y3_7GIeKN5NyY0VDtWtJ1AKakS1CvxWQllyNZTZXHY4YJ9x8C8SfW1Oq",
-    "tauriSessionCookie": "tSessionId=860fc8007a150d0cf1f560109cef6e19da4149e6",
-    "tauriAhUrl": "https://tauriwow.com/sys/armory/character/character.php"
+    "lastCheckedAt": "2026-08-19T00:32:37.590Z"
   }
 }

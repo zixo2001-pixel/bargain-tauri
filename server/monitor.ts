@@ -127,7 +127,8 @@ class TauriAhMonitor {
   }
 
   /**
-   * Atomic file save with backup to guarantee persistence on Railway volumes.
+   * Atomic file save with backup to guarantee persistence.
+   * Excludes raw secrets so state file is safe to commit to git.
    */
   public saveState(): void {
     try {
@@ -135,7 +136,15 @@ class TauriAhMonitor {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
 
-      const serialized = JSON.stringify(this.state, null, 2);
+      const stateToPersist = {
+        rules: this.state.rules,
+        notifiedListingIds: this.state.notifiedListingIds.slice(-2000),
+        notificationHistory: this.state.notificationHistory.slice(0, 100),
+        cachedListings: (this.state.cachedListings || []).slice(0, 50),
+        config: this.state.config
+      };
+
+      const serialized = JSON.stringify(stateToPersist, null, 2);
 
       // Write to temp file first
       fs.writeFileSync(TEMP_FILE, serialized, 'utf-8');

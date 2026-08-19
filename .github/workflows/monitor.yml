@@ -1,0 +1,56 @@
+name: Tauri Character AH Monitor
+
+on:
+  schedule:
+    # Run every 5 minutes continuously 24/7
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+# Prevent concurrent runs to avoid git push merge conflicts
+concurrency:
+  group: tauri-ah-monitor
+  cancel-in-progress: false
+
+jobs:
+  check-character-ah:
+    name: Check Character Auction House
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to commit state back to repository
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Run Character AH Bargain Monitor
+        env:
+          TAURI_SESSION_COOKIE: ${{ secrets.TAURI_SESSION_COOKIE }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TAURI_AH_URL: ${{ secrets.TAURI_AH_URL || 'https://tauriwow.com/vipdsh/ajax/characterah' }}
+        run: npm run monitor:check
+
+      - name: Persist State (Commit & Push State Changes)
+        if: always()
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/monitor-state.json
+          if git diff --staged --quiet; then
+            echo "No state changes to commit."
+          else
+            git commit -m "chore(monitor): update character ah state [skip ci]"
+            git pull --rebase
+            git push
+          fi
