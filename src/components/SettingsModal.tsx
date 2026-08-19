@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { X, KeyRound, BellRing, Clock, ShieldCheck, Check, Send, AlertCircle, HelpCircle, RefreshCw, Server, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, KeyRound, BellRing, Clock, ShieldCheck, Check, Send, AlertCircle, HelpCircle, RefreshCw, Server, AlertTriangle, GitBranch } from 'lucide-react';
 import { MonitorConfig } from '../types';
+import { getStoredGitHubSettings, saveStoredGitHubSettings, GitHubSyncSettings } from '../utils/githubSync';
 
 interface TauriTestResult {
   success: boolean;
@@ -21,6 +22,7 @@ interface SettingsModalProps {
   onSaveSecrets: (secrets: { discordWebhookUrl?: string; tauriSessionCookie?: string; tauriAhUrl?: string }) => Promise<void>;
   onTestDiscord: (webhookUrl?: string) => Promise<{ success: boolean; error?: string }>;
   onTestTauri: (url?: string, sessionCookie?: string) => Promise<TauriTestResult>;
+  onGitHubSettingsSaved?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -30,12 +32,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveConfig,
   onSaveSecrets,
   onTestDiscord,
-  onTestTauri
+  onTestTauri,
+  onGitHubSettingsSaved
 }) => {
   const [discordUrl, setDiscordUrl] = useState('');
   const [sessionCookie, setSessionCookie] = useState('');
   const [tauriUrl, setTauriUrl] = useState(config?.tauriAhUrl || 'https://tauriwow.com/character.php');
   const [pollingMinutes, setPollingMinutes] = useState(config?.pollingIntervalMinutes || 5);
+
+  // GitHub Settings
+  const [githubSettings, setGithubSettings] = useState<GitHubSyncSettings>({
+    owner: '',
+    repo: '',
+    branch: 'main',
+    token: ''
+  });
   
   const [isSaving, setIsSaving] = useState(false);
   
@@ -50,6 +61,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (isOpen) {
+      const stored = getStoredGitHubSettings();
+      setGithubSettings(stored);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSave = async (e: React.FormEvent) => {
@@ -59,13 +77,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setSaveSuccess(false);
 
     try {
-      // 1. Save general config
+      // 1. Save GitHub settings to client storage
+      saveStoredGitHubSettings(githubSettings);
+      if (onGitHubSettingsSaved) onGitHubSettingsSaved();
+
+      // 2. Save general config
       await onSaveConfig({
         pollingIntervalMinutes: pollingMinutes,
         tauriAhUrl: tauriUrl
       });
 
-      // 2. Save secrets if provided
+      // 3. Save secrets if provided
       const secretsToUpdate: { discordWebhookUrl?: string; tauriSessionCookie?: string; tauriAhUrl?: string } = {
         tauriAhUrl: tauriUrl
       };
@@ -358,7 +380,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
           </div>
 
-          {/* Section 3: Monitoring Frequency */}
+          {/* Section 3: GitHub Actions & Sync Settings */}
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-white flex items-center gap-2">
+                <GitBranch className="w-4 h-4 text-purple-400" />
+                GitHub Repository & Direct Sync (Optional)
+              </label>
+              <span className="text-[10px] text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800/60 font-semibold">
+                Static UI Mode
+              </span>
+            </div>
+            
+            <p className="text-[11px] text-slate-400">
+              When configured, clicking <strong>"Sync to GitHub"</strong> in the Rules Manager will commit updated rules directly to your repository's <code className="text-slate-300 font-mono">data/monitor-state.json</code> without needing any backend server.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-slate-300 block mb-1">GitHub Owner / User</label>
+                <input
+                  type="text"
+                  value={githubSettings.owner}
+                  onChange={e => setGithubSettings(prev => ({ ...prev, owner: e.target.value.trim() }))}
+                  placeholder="e.g. your-username"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-slate-300 block mb-1">Repository Name</label>
+                <input
+                  type="text"
+                  value={githubSettings.repo}
+                  onChange={e => setGithubSettings(prev => ({ ...prev, repo: e.target.value.trim() }))}
+                  placeholder="e.g. tauri-ah-monitor"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-slate-300 block mb-1">Branch</label>
+                <input
+                  type="text"
+                  value={githubSettings.branch}
+                  onChange={e => setGithubSettings(prev => ({ ...prev, branch: e.target.value.trim() || 'main' }))}
+                  placeholder="main"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-medium text-slate-300 block mb-1">
+                GitHub Personal Access Token (PAT)
+              </label>
+              <input
+                type="password"
+                value={githubSettings.token}
+                onChange={e => setGithubSettings(prev => ({ ...prev, token: e.target.value.trim() }))}
+                placeholder="ghp_... (stored strictly in your browser localStorage)"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
+              />
+              <p className="text-[10px] text-slate-500 mt-1">
+                Requires <code className="text-slate-400 font-mono">contents:write</code> or <code className="text-slate-400 font-mono">repo</code> scope. Used solely client-side to commit rules directly to GitHub.
+              </p>
+            </div>
+          </div>
+
+          {/* Section 4: Monitoring Frequency */}
           <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
             <label className="block text-xs font-bold text-white mb-1.5 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
@@ -371,7 +461,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             >
               <option value={1}>Every 1 minute</option>
               <option value={3}>Every 3 minutes</option>
-              <option value={5}>Every 5 minutes (Recommended)</option>
+              <option value={5}>Every 5 minutes (GitHub Actions Default)</option>
               <option value={10}>Every 10 minutes</option>
               <option value={15}>Every 15 minutes</option>
               <option value={30}>Every 30 minutes</option>

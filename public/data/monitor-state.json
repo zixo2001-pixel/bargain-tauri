@@ -1,0 +1,53 @@
+{
+  "rules": [
+    {
+      "id": "rule-high-ilvl-steal",
+      "name": "High ilvl (550+) Bargain Steal",
+      "enabled": true,
+      "realm": "Any",
+      "characterClass": "Any",
+      "race": "Any",
+      "faction": "Any",
+      "minLevel": 90,
+      "maxLevel": 90,
+      "minItemLevel": 550,
+      "maxItemLevel": null,
+      "minAchievementPoints": null,
+      "maxAchievementPoints": null,
+      "maxPrice": 200,
+      "createdAt": "2026-08-18T23:57:46.213Z",
+      "matchCount": 5
+    },
+    {
+      "id": "rule-evermoon-budget-85-90",
+      "name": "Evermoon Sub-10k Credit Bargains (Lvl 85-90)",
+      "enabled": true,
+      "realm": "Evermoon",
+      "characterClass": "Any",
+      "race": "Any",
+      "faction": "Any",
+      "minLevel": 85,
+      "maxLevel": 90,
+      "minItemLevel": null,
+      "maxItemLevel": null,
+      "minAchievementPoints": null,
+      "maxAchievementPoints": null,
+      "maxPrice": 10000,
+      "createdAt": "2026-08-18T23:57:46.213Z",
+      "matchCount": 0
+    }
+  ],
+  "notifiedListingIds": [],
+  "notificationHistory": [],
+  "cachedListings": [],
+  "config": {
+    "pollingIntervalMinutes": 5,
+    "isPollingActive": true,
+    "totalParsed": 0,
+    "totalNotified": 0,
+    "lastCheckStatus": "success",
+    "discordWebhookConfigured": true,
+    "tauriSessionConfigured": true,
+    "tauriAhUrl": "https://tauriwow.com/vipdsh/ajax/characterah"
+  }
+}

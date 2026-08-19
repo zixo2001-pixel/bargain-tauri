@@ -1,28 +1,67 @@
-import React from 'react';
-import { Plus, Trash2, Edit2, ShieldCheck, ShieldAlert, Sparkles, CheckCircle2, Play } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Plus, Trash2, Edit2, ShieldCheck, ShieldAlert, Sparkles, CheckCircle2, Play, Download, Copy, Upload, GitBranch } from 'lucide-react';
 import { BargainRule, CLASS_COLORS, CharacterListing } from '../types';
 
 interface RulesManagerProps {
   rules: BargainRule[];
   cachedListings: CharacterListing[];
+  isStaticMode?: boolean;
+  isSyncingGitHub?: boolean;
   onToggleRule: (id: string) => Promise<void>;
   onDeleteRule: (id: string) => Promise<void>;
   onEditRule: (rule: BargainRule) => void;
   onTestRule: (rule: BargainRule) => void;
   onOpenNewRule: () => void;
   onApplyPreset: (preset: Omit<BargainRule, 'id' | 'createdAt' | 'matchCount'>) => Promise<void>;
+  onDownloadState?: () => void;
+  onCopyJson?: () => void;
+  onImportJson?: (importedRules: BargainRule[]) => Promise<void>;
+  onSyncGitHub?: () => Promise<void>;
 }
 
 export const RulesManager: React.FC<RulesManagerProps> = ({
   rules,
   cachedListings,
+  isStaticMode,
+  isSyncingGitHub,
   onToggleRule,
   onDeleteRule,
   onEditRule,
   onTestRule,
   onOpenNewRule,
-  onApplyPreset
+  onApplyPreset,
+  onDownloadState,
+  onCopyJson,
+  onImportJson,
+  onSyncGitHub
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onImportJson) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const text = evt.target?.result as string;
+        const parsed = JSON.parse(text);
+        const importedRules: BargainRule[] = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed.rules)
+          ? parsed.rules
+          : [];
+
+        if (importedRules.length > 0) {
+          await onImportJson(importedRules);
+        }
+      } catch (err) {
+        console.error('Failed to parse uploaded JSON rules:', err);
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
   // Preset Templates
   const presets: Array<{ title: string; desc: string; rule: Omit<BargainRule, 'id' | 'createdAt' | 'matchCount'> }> = [
     {
@@ -104,7 +143,16 @@ export const RulesManager: React.FC<RulesManagerProps> = ({
   ];
 
   return (
-    <div className="space-y-6">
+    <div id="rules-manager" className="space-y-6">
+      {/* Hidden file input for importing JSON rules */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        accept=".json"
+        className="hidden"
+      />
+
       {/* Top Banner with Presets */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -114,17 +162,66 @@ export const RulesManager: React.FC<RulesManagerProps> = ({
               Bargain Detection Rules
             </h2>
             <p className="text-xs text-slate-400">
-              When a new character listing matches any active rule during a polling cycle, an alert is sent to your Discord webhook instantly.
+              When a new character listing matches any active rule during a 5-minute GitHub Action cycle, an alert is sent to Discord.
             </p>
           </div>
-          <button
-            id="add-rule-btn-top"
-            onClick={onOpenNewRule}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-slate-950 shadow-sm border border-amber-400/40 transition-colors self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            Add New Rule
-          </button>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            {onSyncGitHub && (
+              <button
+                id="sync-github-btn"
+                onClick={onSyncGitHub}
+                disabled={isSyncingGitHub}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm border border-indigo-400/40 transition-colors disabled:opacity-50"
+                title="Commit and push rules directly to your GitHub repository for the next 5-min run"
+              >
+                <GitBranch className={`w-3.5 h-3.5 ${isSyncingGitHub ? 'animate-spin' : ''}`} />
+                {isSyncingGitHub ? 'Syncing...' : 'Sync to GitHub'}
+              </button>
+            )}
+
+            {onDownloadState && (
+              <button
+                onClick={onDownloadState}
+                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 transition-colors"
+                title="Download monitor-state.json"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Export</span>
+              </button>
+            )}
+
+            {onCopyJson && (
+              <button
+                onClick={onCopyJson}
+                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 transition-colors"
+                title="Copy rules JSON to clipboard"
+              >
+                <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Copy JSON</span>
+              </button>
+            )}
+
+            {onImportJson && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 transition-colors"
+                title="Import rules from JSON file"
+              >
+                <Upload className="w-3.5 h-3.5 text-amber-400" />
+                <span>Import</span>
+              </button>
+            )}
+
+            <button
+              id="add-rule-btn-top"
+              onClick={onOpenNewRule}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-slate-950 shadow-sm border border-amber-400/40 transition-colors self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              Add New Rule
+            </button>
+          </div>
         </div>
 
         {/* Quick Presets row */}

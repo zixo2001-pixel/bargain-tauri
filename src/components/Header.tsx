@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, RefreshCw, Plus, Settings, Bell, ShieldCheck, Database } from 'lucide-react';
+import { Play, Pause, RefreshCw, Plus, Settings, Bell, ShieldCheck, Database, GitBranch, Download } from 'lucide-react';
 import { MonitorConfig } from '../types';
 
 interface HeaderProps {
@@ -7,10 +7,12 @@ interface HeaderProps {
   activeRulesCount: number;
   totalRulesCount: number;
   isChecking: boolean;
+  isStaticMode: boolean;
   onCheckNow: () => void;
   onTogglePolling: () => void;
   onOpenSettings: () => void;
   onOpenNewRule: () => void;
+  onDownloadState: () => void;
   activeTab: 'rules' | 'listings' | 'alerts' | 'parser';
   setActiveTab: (tab: 'rules' | 'listings' | 'alerts' | 'parser') => void;
   recentAlertsCount: number;
@@ -22,10 +24,12 @@ export const Header: React.FC<HeaderProps> = ({
   activeRulesCount,
   totalRulesCount,
   isChecking,
+  isStaticMode,
   onCheckNow,
   onTogglePolling,
   onOpenSettings,
   onOpenNewRule,
+  onDownloadState,
   activeTab,
   setActiveTab,
   recentAlertsCount,
@@ -47,47 +51,64 @@ export const Header: React.FC<HeaderProps> = ({
                 TauriWoW Character AH Monitor
               </h1>
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                config?.isPollingActive
-                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                isStaticMode
+                  ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                  : config?.isPollingActive
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
               }`}>
-                <span className={`w-2 h-2 rounded-full ${config?.isPollingActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                {config?.isPollingActive ? 'Active Polling' : 'Paused'}
+                <span className={`w-2 h-2 rounded-full ${isStaticMode ? 'bg-purple-400' : config?.isPollingActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                {isStaticMode ? 'GitHub Actions Mode (Static)' : config?.isPollingActive ? 'Active Polling' : 'Paused'}
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Auto-detects bargain characters & dispatches instant Discord webhooks
+              {isStaticMode
+                ? 'Monitored 24/7 by GitHub Actions workflow (every 5m) • Zero server cost'
+                : 'Auto-detects bargain characters & dispatches instant Discord webhooks'}
             </p>
           </div>
         </div>
 
         {/* Quick Actions & Control buttons */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* Polling Toggle Button */}
+          {/* Download State JSON */}
           <button
-            id="toggle-polling-btn"
-            onClick={onTogglePolling}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-              config?.isPollingActive
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                : 'bg-emerald-950/40 hover:bg-emerald-900/40 text-emerald-300 border-emerald-800'
-            }`}
-            title={config?.isPollingActive ? 'Pause background monitor' : 'Resume background monitor'}
+            id="download-state-btn"
+            onClick={onDownloadState}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 transition-colors"
+            title="Download monitor-state.json to commit to your GitHub repository"
           >
-            {config?.isPollingActive ? (
-              <>
-                <Pause className="w-3.5 h-3.5 text-amber-400" />
-                Pause
-              </>
-            ) : (
-              <>
-                <Play className="w-3.5 h-3.5 text-emerald-400" />
-                Resume
-              </>
-            )}
+            <Download className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline">Export</span> JSON
           </button>
 
-          {/* Check Now Button */}
+          {/* Polling Toggle Button (Server mode only) */}
+          {!isStaticMode && (
+            <button
+              id="toggle-polling-btn"
+              onClick={onTogglePolling}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                config?.isPollingActive
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  : 'bg-emerald-950/40 hover:bg-emerald-900/40 text-emerald-300 border-emerald-800'
+              }`}
+              title={config?.isPollingActive ? 'Pause background monitor' : 'Resume background monitor'}
+            >
+              {config?.isPollingActive ? (
+                <>
+                  <Pause className="w-3.5 h-3.5 text-amber-400" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 text-emerald-400" />
+                  Resume
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Check Now / Test Rules Button */}
           <button
             id="check-now-btn"
             onClick={onCheckNow}
@@ -95,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-slate-950 shadow-sm border border-amber-400/40 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin' : ''}`} />
-            {isChecking ? 'Checking AH...' : 'Check Now'}
+            {isChecking ? 'Evaluating...' : isStaticMode ? 'Test Rules on Cached AH' : 'Check AH Now'}
           </button>
 
           {/* New Rule Button */}
@@ -113,13 +134,10 @@ export const Header: React.FC<HeaderProps> = ({
             id="open-settings-btn"
             onClick={onOpenSettings}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
-            title="Configure Discord Webhook and Tauri Session"
+            title="Configure GitHub Sync, Discord Webhook, and Secrets"
           >
             <Settings className="w-3.5 h-3.5 text-slate-400" />
-            <span>Config & Auth</span>
-            {(!config?.discordWebhookConfigured || !config?.tauriSessionConfigured) && (
-              <span className="w-2 h-2 rounded-full bg-amber-400" title="Setup recommendations pending" />
-            )}
+            <span>Config & GitHub</span>
           </button>
         </div>
       </div>

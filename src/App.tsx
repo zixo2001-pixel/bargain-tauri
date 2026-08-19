@@ -8,7 +8,16 @@ import { RuleModal } from './components/RuleModal';
 import { TestRuleModal } from './components/TestRuleModal';
 import { SettingsModal } from './components/SettingsModal';
 import { MonitorConfig, BargainRule, CharacterListing, NotificationLog } from './types';
-import { Bell, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
+import { Bell, CheckCircle2, AlertTriangle, Info, GitBranch } from 'lucide-react';
+import {
+  loadInitialState,
+  persistRules,
+  syncRulesToGitHub,
+  downloadMonitorStateJson,
+  getStoredGitHubSettings,
+  saveStoredGitHubSettings
+} from './utils/githubSync';
+import { parseTauriAhHtmlClient, evaluateListingAgainstRulesClient } from './utils/clientParser';
 
 export default function App() {
   const [config, setConfig] = useState<MonitorConfig | null>(null);
@@ -19,7 +28,9 @@ export default function App() {
 
   const [isChecking, setIsChecking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastCheckSource, setLastCheckSource] = useState<string>('Tauri AH');
+  const [isStaticMode, setIsStaticMode] = useState(false);
+  const [isSyncingGitHub, setIsSyncingGitHub] = useState(false);
+  const [lastCheckSource, setLastCheckSource] = useState<string>('Cached AH');
 
   // Modals state
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
@@ -37,34 +48,18 @@ export default function App() {
     }, 4000);
   };
 
-  // Fetch all core data
+  // Fetch all core data (with seamless fallback to static file / localStorage)
   const fetchData = useCallback(async () => {
     try {
-      const [statusRes, rulesRes, listingsRes, historyRes] = await Promise.all([
-        fetch('/api/status'),
-        fetch('/api/rules'),
-        fetch('/api/listings'),
-        fetch('/api/history')
-      ]);
-
-      if (statusRes.ok) {
-        const statusData = await statusRes.json();
-        setConfig(statusData.config);
-      }
-      if (rulesRes.ok) {
-        const rulesData = await rulesRes.json();
-        setRules(rulesData);
-      }
-      if (listingsRes.ok) {
-        const listingsData = await listingsRes.json();
-        setListings(listingsData);
-      }
-      if (historyRes.ok) {
-        const historyData = await historyRes.json();
-        setHistory(historyData);
-      }
+      const state = await loadInitialState();
+      setIsStaticMode(state.isStaticMode);
+      setConfig(state.config);
+      setRules(state.rules);
+      setListings(state.listings);
+      setHistory(state.history);
+      setLastCheckSource(state.isStaticMode ? 'Cached State JSON' : 'Express Server');
     } catch (err) {
-      console.error('Failed to fetch initial data:', err);
+      console.error('Failed to fetch data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -72,15 +67,41 @@ export default function App() {
 
   useEffect(() => {
     fetchData();
-    // Background polling update check every 10 seconds for UI sync
-    const interval = setInterval(fetchData, 10000);
+    // Only poll if not in pure static mode, or poll cached JSON every 30 seconds
+    const interval = setInterval(fetchData, 20000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Check Now handler
+  // Check Now / Evaluate handler
   const handleCheckNow = async (customHtml?: string) => {
     setIsChecking(true);
     try {
+      if (isStaticMode || customHtml) {
+        // Client-side evaluation
+        let parsedListings = listings;
+        if (customHtml) {
+          parsedListings = parseTauriAhHtmlClient(customHtml);
+          setListings(parsedListings);
+          setLastCheckSource('Custom Parsed HTML');
+        } else {
+          setLastCheckSource('Cached AH Snapshot');
+        }
+
+        let matchCount = 0;
+        parsedListings.forEach(l => {
+          const matched = evaluateListingAgainstRulesClient(l, rules);
+          if (matched.length > 0) matchCount++;
+        });
+
+        if (matchCount > 0) {
+          showToast('success', `Evaluated ${parsedListings.length} characters: ${matchCount} match active bargain rule(s)!`);
+        } else {
+          showToast('info', `Evaluated ${parsedListings.length} characters: No matches against current rules.`);
+        }
+        return;
+      }
+
+      // Server mode
       const res = await fetch('/api/check-now', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,7 +133,7 @@ export default function App() {
     }
   };
 
-  // Toggle background polling active / pause
+  // Toggle background polling active / pause (Server mode only)
   const handleTogglePolling = async () => {
     if (!config) return;
     try {
@@ -131,70 +152,116 @@ export default function App() {
     }
   };
 
-  // Rule actions
+  // Save or Update Rule
   const handleSaveRule = async (ruleData: Omit<BargainRule, 'id' | 'createdAt' | 'matchCount'>) => {
+    let updatedRules: BargainRule[];
     if (editingRule) {
-      const res = await fetch(`/api/rules/${editingRule.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ruleData)
-      });
-      if (!res.ok) throw new Error('Failed to update rule');
+      updatedRules = rules.map(r => r.id === editingRule.id ? { ...r, ...ruleData } : r);
       showToast('success', `Updated rule "${ruleData.name}"`);
     } else {
-      const res = await fetch('/api/rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ruleData)
-      });
-      if (!res.ok) throw new Error('Failed to create rule');
+      const newRule: BargainRule = {
+        ...ruleData,
+        id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        createdAt: new Date().toISOString(),
+        matchCount: 0
+      };
+      updatedRules = [newRule, ...rules];
       showToast('success', `Created bargain rule "${ruleData.name}"`);
     }
+
+    setRules(updatedRules);
+    const ghSettings = getStoredGitHubSettings();
+    await persistRules(updatedRules, isStaticMode, ghSettings.token ? ghSettings : undefined);
     await fetchData();
   };
 
+  // Toggle Rule
   const handleToggleRule = async (id: string) => {
-    try {
-      const res = await fetch(`/api/rules/${id}/toggle`, { method: 'POST' });
-      if (res.ok) {
-        await fetchData();
-      }
-    } catch (err) {
-      console.error('Failed to toggle rule:', err);
-    }
+    const updatedRules = rules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r);
+    setRules(updatedRules);
+    const ghSettings = getStoredGitHubSettings();
+    await persistRules(updatedRules, isStaticMode, ghSettings.token ? ghSettings : undefined);
   };
 
+  // Delete Rule
   const handleDeleteRule = async (id: string) => {
+    const updatedRules = rules.filter(r => r.id !== id);
+    setRules(updatedRules);
+    showToast('info', 'Rule removed.');
+    const ghSettings = getStoredGitHubSettings();
+    await persistRules(updatedRules, isStaticMode, ghSettings.token ? ghSettings : undefined);
+  };
+
+  // Apply Preset
+  const handleApplyPreset = async (preset: Omit<BargainRule, 'id' | 'createdAt' | 'matchCount'>) => {
+    const newRule: BargainRule = {
+      ...preset,
+      id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      createdAt: new Date().toISOString(),
+      matchCount: 0
+    };
+    const updatedRules = [newRule, ...rules];
+    setRules(updatedRules);
+    showToast('success', `Added preset rule "${preset.name}"`);
+    const ghSettings = getStoredGitHubSettings();
+    await persistRules(updatedRules, isStaticMode, ghSettings.token ? ghSettings : undefined);
+  };
+
+  // Sync Rules Directly to GitHub Repository
+  const handleSyncGitHub = async () => {
+    const ghSettings = getStoredGitHubSettings();
+    if (!ghSettings.token || !ghSettings.owner || !ghSettings.repo) {
+      showToast('warning', 'Please set your GitHub Owner, Repo, and Token in Settings & Config first.');
+      setIsSettingsModalOpen(true);
+      return;
+    }
+
+    setIsSyncingGitHub(true);
     try {
-      const res = await fetch(`/api/rules/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        showToast('info', 'Rule removed.');
-        await fetchData();
+      const res = await syncRulesToGitHub(rules, ghSettings);
+      if (res.success) {
+        showToast('success', 'Successfully committed rules to GitHub repository! GitHub Actions will use them on next run.');
+      } else {
+        showToast('warning', `GitHub Sync Error: ${res.error}`);
       }
-    } catch (err) {
-      console.error('Failed to delete rule:', err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast('warning', `GitHub Sync Failed: ${msg}`);
+    } finally {
+      setIsSyncingGitHub(false);
     }
   };
 
-  const handleApplyPreset = async (preset: Omit<BargainRule, 'id' | 'createdAt' | 'matchCount'>) => {
-    try {
-      const res = await fetch('/api/rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(preset)
-      });
-      if (res.ok) {
-        showToast('success', `Added preset rule "${preset.name}"`);
-        await fetchData();
-      }
-    } catch (err) {
-      console.error('Failed to apply preset:', err);
-    }
+  // Download monitor-state.json
+  const handleDownloadState = () => {
+    downloadMonitorStateJson(rules, history, listings);
+    showToast('success', 'Exported data/monitor-state.json! You can commit this file to your GitHub repo.');
+  };
+
+  // Copy JSON
+  const handleCopyJson = () => {
+    const payload = JSON.stringify({ rules }, null, 2);
+    navigator.clipboard.writeText(payload);
+    showToast('success', 'Copied rules JSON to clipboard!');
+  };
+
+  // Import JSON
+  const handleImportJson = async (importedRules: BargainRule[]) => {
+    const merged = [...importedRules, ...rules.filter(r => !importedRules.some(ir => ir.id === r.id))];
+    setRules(merged);
+    showToast('success', `Imported ${importedRules.length} rule(s).`);
+    const ghSettings = getStoredGitHubSettings();
+    await persistRules(merged, isStaticMode, ghSettings.token ? ghSettings : undefined);
   };
 
   // Send single test alert for a character
   const handleSendTestAlert = async (listing: CharacterListing, ruleName = 'Manual Test') => {
     try {
+      if (isStaticMode) {
+        showToast('info', `Simulated test alert for ${listing.name} (In static mode, live webhook alerts are sent by GitHub Actions workflow).`);
+        return;
+      }
+
       const res = await fetch('/api/send-test-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,7 +271,7 @@ export default function App() {
       if (data.success) {
         showToast('success', `Discord test alert sent for ${listing.name}! Check your Discord channel.`);
       } else if (data.simulated) {
-        showToast('info', `Simulated test alert for ${listing.name} (Discord webhook URL not configured yet).`);
+        showToast('info', `Simulated test alert for ${listing.name} (Discord webhook URL not configured in server).`);
       } else {
         showToast('warning', `Discord alert error: ${data.error || 'Unknown error'}`);
       }
@@ -217,6 +284,11 @@ export default function App() {
 
   // Config & Secrets
   const handleSaveConfig = async (updates: Partial<MonitorConfig>) => {
+    if (isStaticMode) {
+      setConfig(prev => prev ? ({ ...prev, ...updates }) : null);
+      showToast('success', 'Config updated in client session.');
+      return;
+    }
     const res = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -228,6 +300,10 @@ export default function App() {
   };
 
   const handleSaveSecrets = async (secrets: { discordWebhookUrl?: string; tauriSessionCookie?: string; tauriAhUrl?: string }) => {
+    if (isStaticMode) {
+      showToast('info', 'Note: In GitHub Actions mode, secrets must be added to your GitHub Repo Secrets (DISCORD_WEBHOOK_URL, TAURI_SESSION_COOKIE, TAURI_AH_URL).');
+      return;
+    }
     const res = await fetch('/api/secrets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -238,6 +314,22 @@ export default function App() {
   };
 
   const handleTestDiscord = async (webhookUrl?: string) => {
+    if (isStaticMode && webhookUrl) {
+      try {
+        const res = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: '⚔️ **[Tauri AH Monitor]** Discord webhook test connection successful!'
+          })
+        });
+        return { success: res.ok, error: res.ok ? undefined : `HTTP ${res.status}` };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { success: false, error: msg };
+      }
+    }
+
     const res = await fetch('/api/test-discord', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -247,6 +339,15 @@ export default function App() {
   };
 
   const handleTestTauri = async (url?: string, sessionCookie?: string) => {
+    if (isStaticMode) {
+      return {
+        success: true,
+        url: url || 'https://tauriwow.com/character.php',
+        parsedCount: listings.length,
+        message: 'Static Mode: Tauri fetching runs in scheduled GitHub Actions runner (bypassing CORS restrictions).'
+      };
+    }
+
     const res = await fetch('/api/test-tauri', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -262,16 +363,22 @@ export default function App() {
   };
 
   const handleClearHistory = async () => {
-    await fetch('/api/history/clear', { method: 'POST' });
+    if (!isStaticMode) {
+      await fetch('/api/history/clear', { method: 'POST' });
+    }
     setHistory([]);
     showToast('info', 'Alert notification history cleared.');
   };
 
   const handleResetNotifiedIds = async () => {
-    const res = await fetch('/api/notified-ids/reset', { method: 'POST' });
-    const data = await res.json();
-    showToast('success', `Reset deduplication memory (${data.count} IDs cleared). Rules can now trigger fresh alerts.`);
-    await fetchData();
+    if (!isStaticMode) {
+      const res = await fetch('/api/notified-ids/reset', { method: 'POST' });
+      const data = await res.json();
+      showToast('success', `Reset deduplication memory (${data.count} IDs cleared). Rules can now trigger fresh alerts.`);
+      await fetchData();
+    } else {
+      showToast('info', 'Notified IDs reset in local state.');
+    }
   };
 
   const activeRulesCount = rules.filter(r => r.enabled).length;
@@ -284,6 +391,7 @@ export default function App() {
         activeRulesCount={activeRulesCount}
         totalRulesCount={rules.length}
         isChecking={isChecking}
+        isStaticMode={isStaticMode}
         onCheckNow={() => handleCheckNow()}
         onTogglePolling={handleTogglePolling}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -291,6 +399,7 @@ export default function App() {
           setEditingRule(null);
           setIsRuleModalOpen(true);
         }}
+        onDownloadState={handleDownloadState}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         recentAlertsCount={history.length}
@@ -299,34 +408,40 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Quick Setup Alert if Discord Webhook is Missing */}
-        {!config?.discordWebhookConfigured && (
-          <div className="mb-6 p-4 rounded-xl bg-amber-950/40 border border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-500/20 text-amber-300">
-                <Bell className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-amber-200 text-sm">Discord Webhook Not Configured</h3>
-                <p className="text-amber-300/80 mt-0.5">
-                  To receive real-time bargain alerts on your phone or desktop, add your Discord channel Webhook URL.
-                </p>
-              </div>
+        {/* Architecture Info Banner */}
+        <div className="mb-6 p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-300">
+              <GitBranch className="w-5 h-5" />
             </div>
+            <div>
+              <h3 className="font-bold text-white text-sm">
+                GitHub Actions 5-Minute Monitor Architecture
+              </h3>
+              <p className="text-slate-400 mt-0.5">
+                Monitoring runs 24/7 as an ephemeral GitHub Actions workflow (defined in <code className="text-amber-300 font-mono">.github/workflows/monitor.yml</code>). Edit rules here and sync directly to your repository.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-lg font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 self-start sm:self-auto transition-colors shrink-0"
+              onClick={handleSyncGitHub}
+              disabled={isSyncingGitHub}
+              className="px-3.5 py-1.5 rounded-lg font-semibold bg-indigo-600 hover:bg-indigo-500 text-white self-start sm:self-auto transition-colors shrink-0 disabled:opacity-50 flex items-center gap-1.5"
             >
-              Configure Discord Webhook
+              <GitBranch className="w-3.5 h-3.5" />
+              {isSyncingGitHub ? 'Syncing...' : 'Sync Rules to GitHub'}
             </button>
           </div>
-        )}
+        </div>
 
         {/* Tab Views */}
         {activeTab === 'rules' && (
           <RulesManager
             rules={rules}
             cachedListings={listings}
+            isStaticMode={isStaticMode}
+            isSyncingGitHub={isSyncingGitHub}
             onToggleRule={handleToggleRule}
             onDeleteRule={handleDeleteRule}
             onEditRule={(rule) => {
@@ -341,6 +456,10 @@ export default function App() {
               setIsRuleModalOpen(true);
             }}
             onApplyPreset={handleApplyPreset}
+            onDownloadState={handleDownloadState}
+            onCopyJson={handleCopyJson}
+            onImportJson={handleImportJson}
+            onSyncGitHub={handleSyncGitHub}
           />
         )}
 
@@ -374,20 +493,20 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-slate-850 py-4 bg-slate-950 text-slate-500 text-xs text-center">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>TauriWoW Character Auction House Bargain Monitor • Secure Server-Side Polling (Notification-Only)</span>
+          <span>TauriWoW Character AH Monitor • GitHub Actions 5-Min Scheduled Workflow • Static UI Compatible</span>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSettingsModalOpen(true)}
               className="hover:text-slate-300 underline"
             >
-              Setup & Auth Guide
+              GitHub & Secrets Config
             </button>
             <span>•</span>
             <button
               onClick={() => setActiveTab('parser')}
               className="hover:text-slate-300 underline"
             >
-              Parser Sandbox
+              HTML Parser Sandbox
             </button>
           </div>
         </div>
@@ -420,6 +539,9 @@ export default function App() {
         onSaveSecrets={handleSaveSecrets}
         onTestDiscord={handleTestDiscord}
         onTestTauri={handleTestTauri}
+        onGitHubSettingsSaved={() => {
+          showToast('success', 'GitHub repository settings saved to browser storage.');
+        }}
       />
 
       {/* Toast Notification */}
