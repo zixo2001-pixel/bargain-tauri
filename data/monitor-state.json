@@ -245,6 +245,51 @@
   ],
   "cachedListings": [
     {
+      "id": "295855",
+      "name": "Ignitor",
+      "level": 110,
+      "race": "Blood Elf",
+      "class": "Mage",
+      "faction": "Horde",
+      "realm": "Tauri (x1)",
+      "achievementPoints": 1220,
+      "itemLevel": 831,
+      "price": 28000,
+      "listingDate": "08/26 04:54",
+      "detailsUrl": "https://tauriwow.com/vippanel#vipdsh/characterah/character/295855",
+      "rawSnippet": "\n  <div class=\"chah-avatar\">\n    <img src=\"/sys//img/armory/images/portraits/wow/1-10-8.gif\">\n  </div>\n\n  <div class=\"chah-characterdata\">\n    <div class=\"chah-auction-details\">\n      <div class=\"tc-indicator\">28.000</div>\n      <div>08/26 04:54</div>\n    </div>\n\n    <div class=\"chah-chardata-line1\""
+    },
+    {
+      "id": "295853",
+      "name": "Larabby",
+      "level": 100,
+      "race": "Human",
+      "class": "Death Knight",
+      "faction": "Alliance",
+      "realm": "Evermoon (x2)",
+      "achievementPoints": 360,
+      "itemLevel": 412,
+      "price": 3800,
+      "listingDate": "08/26 04:02",
+      "detailsUrl": "https://tauriwow.com/vippanel#vipdsh/characterah/character/295853",
+      "rawSnippet": "\n  <div class=\"chah-avatar\">\n    <img src=\"/sys//img/armory/images/portraits/wow/1-1-6.gif\">\n  </div>\n\n  <div class=\"chah-characterdata\">\n    <div class=\"chah-auction-details\">\n      <div class=\"tc-indicator\">3.800</div>\n      <div>08/26 04:02</div>\n    </div>\n\n    <div class=\"chah-chardata-line1\">\n"
+    },
+    {
+      "id": "295851",
+      "name": "Pekí",
+      "level": 101,
+      "race": "Gnome",
+      "class": "Warrior",
+      "faction": "Alliance",
+      "realm": "Evermoon (x2)",
+      "achievementPoints": 455,
+      "itemLevel": 532,
+      "price": 4200,
+      "listingDate": "08/26 04:01",
+      "detailsUrl": "https://tauriwow.com/vippanel#vipdsh/characterah/character/295851",
+      "rawSnippet": "\n  <div class=\"chah-avatar\">\n    <img src=\"/sys//img/armory/images/portraits/wow/1-7-1.gif\">\n  </div>\n\n  <div class=\"chah-characterdata\">\n    <div class=\"chah-auction-details\">\n      <div class=\"tc-indicator\">4.200</div>\n      <div>08/26 04:01</div>\n    </div>\n\n    <div class=\"chah-chardata-line1\">\n"
+    },
+    {
       "id": "295849",
       "name": "Pancetta",
       "level": 93,
@@ -573,51 +618,6 @@
       "listingDate": "08/25 13:41",
       "detailsUrl": "https://tauriwow.com/vippanel#vipdsh/characterah/character/295787",
       "rawSnippet": "\n  <div class=\"chah-avatar\">\n    <img src=\"/sys//img/armory/images/portraits/wow/1-1-9.gif\">\n  </div>\n\n  <div class=\"chah-characterdata\">\n    <div class=\"chah-auction-details\">\n      <div class=\"tc-indicator\">200.000</div>\n      <div>08/25 13:41</div>\n    </div>\n\n    <div class=\"chah-chardata-line1\""
-    },
-    {
-      "id": "295785",
-      "name": "Dzeronimus",
-      "level": 110,
-      "race": "Draenei",
-      "class": "Shaman",
-      "faction": "Alliance",
-      "realm": "Evermoon (x2)",
-      "achievementPoints": 670,
-      "itemLevel": 788,
-      "price": 10000,
-      "listingDate": "08/19 13:04",
-      "detailsUrl": "https://tauriwow.com/vippanel#vipdsh/characterah/character/295785",
-      "rawSnippet": "\n  <div class=\"chah-avatar\">\n    <img src=\"/sys//img/armory/images/portraits/wow/0-11-7.gif\">\n  </div>\n\n  <div class=\"chah-characterdata\">\n    <div class=\"chah-auction-details\">\n      <div class=\"tc-indicator\">10.000</div>\n      <div>08/19 13:04</div>\n    </div>\n\n    <div class=\"chah-chardata-line1\""
-    },
-    {
-      "id": "295781",
-      "name": "Shadowash",
-      "level": 110,
-      "race": "Blood Elf",
-      "class": "Death Knight",
-      "faction": "Horde",
-      "realm": "Evermoon (x2)",
-      "achievementPoints": 5665,
-      "itemLevel": 824,
-      "price": 38000,
-      "listingDate": "08/25 12:58",
-      "detailsUrl": "https://tauriwow.com/vippanel#vipdsh/characterah/character/295781",
-      "rawSnippet": "\n  <div class=\"chah-avatar\">\n    <img src=\"/sys//img/armory/images/portraits/wow/1-10-6.gif\">\n  </div>\n\n  <div class=\"chah-characterdata\">\n    <div class=\"chah-auction-details\">\n      <div class=\"tc-indicator\">38.000</div>\n      <div>08/25 12:58</div>\n    </div>\n\n    <div class=\"chah-chardata-line1\""
-    },
-    {
-      "id": "295779",
-      "name": "Zedynha",
-      "level": 90,
-      "race": "Night Elf",
-      "class": "Hunter",
-      "faction": "Alliance",
-      "realm": "Evermoon (x2)",
-      "achievementPoints": 840,
-      "itemLevel": 506,
-      "price": 3800,
-      "listingDate": "08/19 12:52",
-      "detailsUrl": "https://tauriwow.com/vippanel#vipdsh/characterah/character/295779",
-      "rawSnippet": "\n  <div class=\"chah-avatar\">\n    <img src=\"/sys//img/armory/images/portraits/wow/1-4-3.gif\">\n  </div>\n\n  <div class=\"chah-characterdata\">\n    <div class=\"chah-auction-details\">\n      <div class=\"tc-indicator\">3.800</div>\n      <div>08/19 12:52</div>\n    </div>\n\n    <div class=\"chah-chardata-line1\">\n"
     }
   ],
   "config": {
@@ -626,6 +626,6 @@
     "totalParsed": 25,
     "totalNotified": 8,
     "lastCheckStatus": "success",
-    "lastCheckedAt": "2026-08-19T02:07:48.217Z"
+    "lastCheckedAt": "2026-08-19T03:09:12.455Z"
   }
 }
