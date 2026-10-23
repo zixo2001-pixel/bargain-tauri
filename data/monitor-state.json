@@ -249,8 +249,7 @@
     "isPollingActive": true,
     "totalParsed": 0,
     "totalNotified": 8,
-    "lastCheckStatus": "error",
-    "lastCheckedAt": "2026-10-23T07:07:34.416Z",
-    "lastCheckError": "fetch failed"
+    "lastCheckStatus": "success",
+    "lastCheckedAt": "2026-10-23T12:35:26.349Z"
   }
 }
